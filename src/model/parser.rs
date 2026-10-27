@@ -11,6 +11,7 @@ impl GrubParser {
     pub fn parse_settings<P: AsRef<Path>>(path: P) -> Result<GrubSettings> {
         let content = fs::read_to_string(path).context("Failed to read settings file")?;
         let mut settings = GrubSettings::new();
+        // Pattern for KEY="VALUE" or KEY=VALUE (handling quotes and comments)
         let re = Regex::new(r#"(?m)^([A-Z0-9_]+)\s*=\s*["']?(.*?)["']?\s*(?:#.*)?$"#)?;
 
         for cap in re.captures_iter(&content) {
@@ -34,7 +35,6 @@ impl GrubParser {
 
         while i < lines.len() {
             let line = lines[i].trim();
-            
             if line.is_empty() || line.starts_with('#') || line.contains("### BEGIN") || line.contains("### END") {
                 i += 1;
                 continue;
@@ -66,7 +66,6 @@ impl GrubParser {
 
         for (idx, line) in lines.iter().enumerate().skip(start_idx) {
             let trimmed = line.trim();
-            // Count braces in this line
             let open_braces = trimmed.matches('{').count();
             let close_braces = trimmed.matches('}').count();
 
@@ -86,21 +85,21 @@ impl GrubParser {
 
         let end_idx = end_idx.ok_or_else(|| anyhow::anyhow!("No matching brace for block at line {}", start_idx + 1))?;
 
-        // Extract name: menuentry 'Name' or submenu 'Name'
+        // Robust regex to capture name inside single quotes: menuentry 'Name' ...
         let re_name = Regex::new(r#"(?:menuentry|submenu)\s+'([^']+)'"#)?;
         let name = re_name.captures(header)
             .map(|cap| cap[1].to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
-        // Extract commands inside the block (simple implementation)
         let mut commands = Vec::new();
         for idx in (start_idx + 1)..end_idx {
             let line = lines[idx].trim();
-            if line.is_empty() || line.starts_with('#') { continue; }
+            if line.is_empty() || line.starts_with('#') || line.contains('{') || line.contains('}') {
+                continue;
+            }
 
-            // Very basic parser for 'cmd arg1 arg2'
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 && !line.contains('{') && !line.contains('}') {
+            if parts.len() >= 2 {
                 commands.push(GrubCommand {
                     command: parts[0].to_string(),
                     args: parts[1..].iter().map(|&s| s.to_string()).collect(),
@@ -109,7 +108,6 @@ impl GrubParser {
         }
 
         if header.starts_with("submenu") {
-            // For submenus, we want to parse their contents recursively
             let inner_lines: Vec<String> = lines[(start_idx + 1)..end_idx].iter().cloned().collect();
             let sub_entries = Self::parse_recursive_on_slice(&inner_lines)?;
             Ok((GrubMenu::Submenu {
@@ -120,21 +118,21 @@ impl GrubParser {
         } else {
             Ok((GrubMenu::Entry(GrubEntry {
                 name,
-                classes: vec![], // Simplified for now
+                classes: vec![],
                 id: None,
                 commands,
             }), end_idx + 1))
         }
     }
 
-    // Helper to avoid unnecessary string allocations in recursion
     fn parse_recursive_on_slice(lines: &[String]) -> Result<Vec<GrubMenu>> {
         let mut menus = Vec::new();
         let mut i = 0;
         while i < lines.len() {
             let line = lines[i].trim();
             if line.is_empty() || line.starts_with('#') {
-                i += 1; continue;
+                i += 1;
+                continue;
             }
             if line.starts_with("menuentry") || line.starts_with("submenu") {
                 match Self::parse_block(lines, i) {

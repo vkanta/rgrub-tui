@@ -91,6 +91,21 @@ async fn main() -> anyhow::Result<()> {
                             app.edit_buffer.pop();
                         }
                     }
+                    KeyCode::Char('d') => { // Set Default
+                         if app.current_view == View::MenuView {
+                             app.set_default_entry();
+                         }
+                    }
+                    KeyCode::Char('u') => { // Move Up
+                         if app.current_view == View::MenuView {
+                             app.move_menu_item_up();
+                         }
+                    }
+                    KeyCode::Char('j') => { // Move Down
+                         if app.current_view == View::MenuView {
+                             app.move_menu_item_down();
+                         }
+                    }
                     _ => {}
                 }
             }
@@ -121,7 +136,7 @@ fn ui(f: &mut Frame, app: &App) {
     }
 
     let status_bar = match app.current_view {
-        View::MenuView => Paragraph::new(" [s]: Settings | [↑/↓]: Move | [Enter]: Select | [q]: Quit ]"),
+        View::MenuView => Paragraph::new(" [s]: Settings | [u/j]: Reorder | [d]: Default | [Enter]: Select | [q]: Quit ]"),
         View::SettingsView => Paragraph::new(" [s]: Menu | [↑/↓]: Move | [e]: Edit | [Shift+S]: Save | [q]: Quit ]"),
         View::EntryDetailView => Paragraph::new(" [Esc]: Back | [q]: Quit ]"),
         View::EditingSettings => Paragraph::new(" [Enter]: Apply | [c]: Cancel | Type to edit ]"),

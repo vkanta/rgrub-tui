@@ -59,6 +59,40 @@ impl App {
         }
     }
 
+    // Move entry UP
+    pub fn move_menu_item_up(&mut self) {
+        if self.menu_selection > 0 {
+            self.menu_items.swap(self.menu_selection, self.menu_selection - 1);
+            self.menu_selection -= 1;
+        }
+    }
+
+    // Move entry DOWN
+    pub fn move_menu_item_down(&mut self) {
+        if self.menu_selection < self.menu_items.len().saturating_sub(1) {
+            self.menu_items.swap(self.menu_selection, self.menu_selection + 1);
+            self.menu_selection += 1;
+        }
+    }
+
+    // Set default entry
+    pub fn set_default_entry(&mut self) {
+        if let Some(item) = self.menu_items.get(self.menu_selection) {
+             match item {
+                 crate::model::entry::GrubMenu::Entry(_) => {
+                     // In a real implementation, we would update GRUB_DEFAULT in settings.
+                     // For MVP, we'll simulate it by setting the name of the entry as default.
+                     let name = match item {
+                         crate::model::entry::GrubMenu::Entry(e) => e.name.clone(),
+                         _ => "".to_string()
+                     };
+                     self.settings.set("GRUB_DEFAULT".to_string(), name);
+                 }
+                 _ => {}
+             }
+        }
+    }
+
     pub fn select_menu_item(&mut self) {
         if let Some(item) = self.menu_items.get(self.menu_selection) {
             match item {
@@ -92,7 +126,7 @@ impl App {
 
     pub fn get_selected_setting_key(&self) -> Option<String> {
         let keys: Vec<_> = self.settings.entries.keys().collect();
-        keys.get(self.settings_selection).cloned().map(|s| s.to_string())
+        keys.get(self.settings_selection).cloned().flatten()
     }
 
     pub fn apply_edit(&mut self) {
